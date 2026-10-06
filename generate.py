@@ -3,15 +3,17 @@
 """
 Gerador de lista M3U para SS IPTV.
 
-Monta uma lista .m3u combinando canais FAST (gratuitos) de varios provedores:
-Pluto TV, Samsung TV Plus, Plex e Roku ("Runtime"). Tambem aceita qualquer
-fonte M3U externa (type: m3u), para o caso de voce encontrar um feed BR
-especifico de algum provedor.
+Monta uma lista .m3u combinando canais FAST (gratuitos) brasileiros:
+Pluto TV BR e Runtime.tv. Tambem aceita qualquer fonte M3U externa
+(type: m3u), para o caso de voce encontrar outro feed BR.
 
-Os metadados dos canais (nome, logo, grupo, EPG) vem do projeto open-source
-`matthuisman/i.mjh.nz`, que e atualizado continuamente. Os streams usam o
-redirecionador `jmp2.uk`, que resolve para o stream oficial de cada servico no
-momento do play (metodo atual que funciona apos as mudancas de 2024).
+Streams:
+  - Pluto TV: URL HLS oficial do stitcher da propria Pluto TV, montada a
+    partir de uma sessao anonima iniciada em boot.pluto.tv (mesmo mecanismo
+    do site https://pluto.tv/br/watch/live-tv/). Os metadados (nome, logo,
+    grupo, numero, EPG) vem do projeto open-source matthuisman/i.mjh.nz.
+  - Runtime.tv: canais lineares da API oficial (plataforma OTTera), com o
+    stream HLS oficial ja embutido.
 
 Uso:
     python generate.py --config config.yml
@@ -103,10 +105,52 @@ class Channel:
 # --------------------------------------------------------------------------
 # Provedores nativos
 # --------------------------------------------------------------------------
+def _pluto_session():
+    """Inicia uma sessao anonima na Pluto TV e devolve os parametros do
+    stitcher (necessarios para montar as URLs de stream oficiais)."""
+    did = str(uuid.uuid4())
+    sid = str(uuid.uuid4())
+    params = {
+        "appName": "web", "appVersion": "5.0", "deviceVersion": "126",
+        "deviceModel": "web", "deviceMake": "chrome", "deviceType": "web",
+        "clientID": did, "clientModelNumber": "na",
+        "serverSideAds": "false", "sid": sid,
+        "drmCapabilities": "widevine:L3",
+    }
+    try:
+        r = requests.get("https://boot.pluto.tv/v4/start",
+                         headers={"User-Agent": USER_AGENT},
+                         params=params, timeout=40)
+        r.raise_for_status()
+        b = r.json()
+        return (
+            b.get("stitcherParams", ""),
+            b.get("sessionToken", ""),
+            b.get("servers", {}).get(
+                "stitcher",
+                "https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"  [AVISO] Pluto TV: falha ao iniciar sessao: {exc}",
+              file=sys.stderr)
+        return None, None, None
+
+
 def provider_pluto(regions):
+    """Canais ao vivo da Pluto TV.
+
+    A lista de canais (nome, logo, grupo, numero, EPG) de cada regiao vem da
+    fonte open-source `matthuisman/i.mjh.nz`; o link de stream, porem, e a URL
+    HLS **oficial da propria Pluto TV** (stitcher), montada a partir de uma
+    sessao anonima iniciada em `boot.pluto.tv` -- exatamente como o site
+    https://pluto.tv/br/watch/live-tv/ faz no navegador.
+    """
     data = get_json_gz(f"{MJH}/PlutoTV/.channels.json.gz")
     out, epg = [], []
     if not data:
+        return out, epg
+    sp, tok, stitcher = _pluto_session()
+    if not sp:
         return out, epg
     for region in regions:
         rdata = data.get("regions", {}).get(region)
@@ -115,89 +159,68 @@ def provider_pluto(regions):
             continue
         epg.append(f"{MJH}/PlutoTV/{region}.xml.gz")
         for cid, ch in rdata.get("channels", {}).items():
+            url = (f"{stitcher}/stitch/hls/channel/{cid}/master.m3u8"
+                   f"?{sp}")
+            if tok:
+                url += f"&sessionToken={tok}"
             out.append(Channel(
-                cid, ch.get("name", cid),
-                f"https://jmp2.uk/plu-{cid}.m3u8",
+                cid, ch.get("name", cid), url,
                 ch.get("logo", ""), ch.get("chno"), ch.get("group", ""),
             ))
     return out, epg
 
 
-def provider_samsung(regions):
-    data = get_json_gz(f"{MJH}/SamsungTVPlus/.channels.json.gz")
-    out, epg = [], []
-    if not data:
-        return out, epg
-    slug = data.get("slug", "stvp-{id}.m3u8")
-    for region in regions:
-        rdata = data.get("regions", {}).get(region)
-        if not rdata:
-            print(f"  [AVISO] Samsung TV Plus nao possui a regiao '{region}'")
-            continue
-        epg.append(f"{MJH}/SamsungTVPlus/{region}.xml.gz")
-        for cid, ch in rdata.get("channels", {}).items():
-            path = slug.replace("{id}", cid)
-            out.append(Channel(
-                cid, ch.get("name", cid),
-                f"https://jmp2.uk/{path}",
-                ch.get("logo", ""), ch.get("chno"), ch.get("group", ""),
-            ))
-    return out, epg
+def provider_runtime(language="pt", country="BR"):
+    """Canais lineares (FAST) oficiais da Runtime.tv (plataforma OTTera).
 
-
-def _plex_token(region):
-    cid = uuid.uuid4().hex
+    A Runtime.tv roda na OTTera. A lista de canais lineares vem do endpoint
+    publico `search` da API da OTTera; o acesso usa o par de cabecalhos de
+    autorizacao do proprio site (token `ottera-cs-auth` + `ottera-referrer`),
+    exatamente como o player web faz. Cada canal ja traz um `video_url` HLS
+    (.m3u8) pronto para tocar, entao o stream oficial e embutido direto na
+    lista (sem redirecionador).
+    """
+    base = "https://api-ott.runtime.tv"
     headers = {
-        "Accept": "application/json", "User-Agent": USER_AGENT,
-        "X-Plex-Product": "Plex Web", "X-Plex-Version": "4.150.0",
-        "X-Plex-Client-Identifier": cid, "X-Plex-Platform": "Web",
+        "User-Agent": USER_AGENT,
+        "ottera-cs-auth": "yhCZviqLb7pvesmf22YPBkGWzXp",
+        "ottera-referrer": "runtime.tv",
     }
-    params = {"X-Plex-Product": "Plex Web", "X-Plex-Client-Identifier": cid}
+    params = {
+        "object_type": "video",
+        "video_type": "linear",
+        "max": "500",
+        "language": language or "pt",
+    }
+    if country:
+        params["force_country_code"] = country
+    out, epg = [], []
     try:
-        r = requests.post("https://clients.plex.tv/api/v2/users/anonymous",
-                          headers=headers, params=params, timeout=20)
+        r = requests.get(base + "/search", headers=headers,
+                         params=params, timeout=60)
         r.raise_for_status()
-        return r.json().get("authToken")
+        data = r.json()
     except Exception as exc:  # noqa: BLE001
-        print(f"  [AVISO] Plex: falha ao obter token: {exc}", file=sys.stderr)
-        return None
-
-
-def provider_plex(regions):
-    data = get_json_gz(f"{MJH}/Plex/.channels.json.gz")
-    out, epg = [], []
-    if not data:
+        print(f"  [AVISO] Runtime.tv: falha na API: {exc}", file=sys.stderr)
         return out, epg
-    token = _plex_token(regions[0] if regions else "us")
-    if not token:
-        return out, epg
-    want = set(regions)
-    for region in regions:
-        epg.append(f"{MJH}/Plex/{region}.xml.gz")
-    for cid, ch in data.get("channels", {}).items():
-        ch_regions = set(ch.get("regions", []))
-        if want and not (want & ch_regions):
+    for o in data.get("objects", []):
+        url = o.get("video_url") or ""
+        if not url.startswith("http"):
             continue
+        if "video_not_available" in url or "placeholder" in url:
+            continue  # canal temporariamente indisponivel
+        cat = ""
+        meta = o.get("meta") or {}
+        cats = meta.get("categories") or []
+        if cats:
+            cat = cats[0].get("name", "")
         out.append(Channel(
-            cid, ch.get("name", cid),
-            f"https://epg.provider.plex.tv/library/parts/{cid}/?X-Plex-Token={token}",
-            ch.get("logo", ""), ch.get("chno"), ch.get("group", ""),
-        ))
-    return out, epg
-
-
-def provider_roku(regions):  # noqa: ARG001 (Roku nao tem regioes)
-    data = get_json_gz("https://i.mjh.nz/Roku/.channels.json")
-    out, epg = [], []
-    if not data:
-        return out, epg
-    epg.append("https://i.mjh.nz/Roku/all.xml.gz")
-    for cid, ch in data.get("channels", {}).items():
-        groups = ch.get("groups") or [""]
-        out.append(Channel(
-            cid, ch.get("name", cid),
-            f"https://jmp2.uk/rok-{cid}.m3u8",
-            ch.get("logo", ""), ch.get("chno"), groups[0],
+            str(o.get("id", "")),
+            o.get("name", o.get("id", "")),
+            url,
+            o.get("logo", "") or o.get("logo_poster", ""),
+            None,
+            cat,
         ))
     return out, epg
 
@@ -235,9 +258,6 @@ def provider_m3u(sources):
 
 PROVIDERS = {
     "pluto": provider_pluto,
-    "samsung": provider_samsung,
-    "plex": provider_plex,
-    "roku": provider_roku,
 }
 
 
@@ -314,6 +334,11 @@ def main():
             channels, epg = PROVIDERS[ptype](regions)
         elif ptype == "m3u":
             channels, epg = provider_m3u(prov.get("sources"))
+        elif ptype in ("runtime", "ottera"):
+            channels, epg = provider_runtime(
+                prov.get("language", "pt"),
+                prov.get("country", "BR"),
+            )
         else:
             print(f"  [AVISO] tipo desconhecido: {ptype}")
             continue

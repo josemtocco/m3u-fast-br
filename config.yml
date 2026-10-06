@@ -2,15 +2,15 @@
 # Configuracao do gerador de lista M3U para SS IPTV
 # --------------------------------------------------------------------------
 # Cada provedor tem um "type" (como buscar os canais) e, quando aplicavel,
-# uma lista de "regions" (paises). Os metadados vem do projeto open-source
-# matthuisman/i.mjh.nz e os streams usam o redirecionador jmp2.uk.
+# uma lista de "regions" (paises).
 #
-# IMPORTANTE sobre o Brasil:
-#   - Pluto TV   -> possui feed BR dedicado (regiao 'br'). FUNCIONA 100%.
-#   - Samsung TV Plus / Plex -> esta fonte gratuita NAO expoe um feed 'br'.
-#     Deixei regioes proximas como padrao; troque em 'regions' se quiser.
-#     Se voce encontrar um feed .m3u BR especifico, use um bloco type: m3u.
-#   - Roku ('Runtime') -> catalogo unico (majoritariamente US), sem regiao.
+# Provedores ativos (todos com catalogo brasileiro real):
+#   - Pluto TV BR -> feed 'br' dedicado. O stream e a URL HLS oficial do
+#     stitcher da propria Pluto TV (boot.pluto.tv), igual ao site pluto.tv/br.
+#   - Runtime.tv  -> canais lineares (FAST) oficiais, catalogo pt/BR.
+#
+# Se encontrar outro feed .m3u BR gratuito, use um bloco type: m3u (exemplo
+# pronto no final deste arquivo).
 # ==========================================================================
 
 output_file: playlists/lista.m3u
@@ -24,7 +24,7 @@ global_filters:
   exclude: []
 
 providers:
-  # ---- Pluto TV Brasil (179+ canais em portugues) ----
+  # ---- Pluto TV Brasil (179+ canais em portugues, stream oficial) ----
   - name: Pluto TV BR
     type: pluto
     group: "Pluto TV BR"
@@ -33,28 +33,12 @@ providers:
     include: []
     exclude: []
 
-  # ---- Plex (sem feed 'br' nesta fonte; use mx/us como aproximacao) ----
-  - name: Plex
-    type: plex
-    group: "Plex"
-    regions: [mx]
-    enabled: true
-    include: []
-    exclude: []
-
-  # ---- Samsung TV Plus (sem feed 'br' nesta fonte; padrao us) ----
-  - name: Samsung TV Plus
-    type: samsung
-    group: "Samsung TV Plus"
-    regions: [us]
-    enabled: true
-    include: []
-    exclude: []
-
-  # ---- "Runtime" interpretado como Roku Channel (FAST gratuito) ----
-  - name: Roku Channel
-    type: roku
-    group: "Roku (Runtime)"
+  # ---- Runtime.tv (canais lineares FAST oficiais, catalogo BR) ----
+  - name: Runtime.tv
+    type: runtime
+    group: "Runtime.tv"
+    language: pt
+    country: BR
     enabled: true
     include: []
     exclude: []

@@ -1,9 +1,8 @@
 # Lista M3U FAST BR para SS IPTV
 
 Projeto que **monta automaticamente uma lista `.m3u`** com canais gratuitos
-(FAST) de **Pluto TV**, **Plex**, **Samsung TV Plus** e **Roku Channel**
-(interpretado como "Runtime"), pronta para usar no **SS IPTV** e em qualquer
-player que aceite M3U (VLC, Kodi, TiviMate etc.).
+(FAST) brasileiros de **Pluto TV BR** e **Runtime.tv**, pronta para usar no
+**SS IPTV** e em qualquer player que aceite M3U (VLC, Kodi, TiviMate etc.).
 
 Um workflow do GitHub Actions **busca os canais a cada 6 horas** e atualiza a
 lista sozinho — sem servidor e sem custo.
@@ -13,31 +12,36 @@ lista sozinho — sem servidor e sem custo.
 | Provedor | Grupo na lista | Brasil? |
 |---|---|---|
 | Pluto TV | `Pluto TV BR` | **Sim** — feed `br` dedicado (~179 canais em portugues) |
-| Plex | `Plex` | Nao expoe feed `br` nesta fonte (padrao: `mx`) |
-| Samsung TV Plus | `Samsung TV Plus` | Nao expoe feed `br` nesta fonte (padrao: `us`) |
-| Roku Channel ("Runtime") | `Roku (Runtime)` | Catalogo unico, sem regiao (majoritariamente US) |
+| Runtime.tv | `Runtime.tv` | **Sim** — catalogo BR em portugues (~22 canais lineares) |
 
-> **Sobre "Runtime":** nao existe um servico FAST amplamente conhecido com esse
-> nome exato. Interpretei como **Roku Channel**. Se voce quis dizer outro
-> servico (ex.: Rakuten), e so trocar/adicionar um bloco no
-> [`config.yml`](config.yml).
+> **Sobre a Pluto TV BR:** o link de cada canal e a **URL HLS oficial da propria
+> Pluto TV** (stitcher), montada a partir de uma sessao anonima iniciada em
+> `boot.pluto.tv` — exatamente o mesmo mecanismo que o site
+> https://pluto.tv/br/watch/live-tv/ usa no navegador. Os metadados do canal
+> (nome, logo, grupo, numero e EPG) vem da fonte open-source
+> `matthuisman/i.mjh.nz`. Como a sessao e renovada a cada execucao (a cada 6h),
+> os links ficam sempre validos.
 >
-> **Sobre o Brasil:** entre esses servicos, apenas a **Pluto TV** disponibiliza
-> publicamente um feed brasileiro gratuito. Plex, Samsung TV Plus e Roku nao
-> expoem um feed `br` nesta fonte gratuita, entao foram incluidos com regioes
-> proximas (configuraveis). Se voce encontrar um feed `.m3u` BR de algum deles,
-> basta adicionar um bloco `type: m3u` no `config.yml` (ja ha um exemplo).
+> **Sobre a Runtime.tv:** a lista puxa os canais lineares (FAST) **diretamente
+> da API oficial da Runtime.tv** (plataforma OTTera), filtrando pelo catalogo
+> em portugues/Brasil (`language: pt`, `country: BR`). Cada canal ja vem com o
+> stream HLS oficial (`.m3u8`) embutido na lista.
+>
+> Caso encontre outro feed `.m3u` BR gratuito, basta adicionar um bloco
+> `type: m3u` no `config.yml` (ja ha um exemplo pronto).
 
 ## Como funciona
 
 1. O script [`generate.py`](generate.py) le o [`config.yml`](config.yml).
-2. Para cada provedor, busca a lista de canais na fonte open-source
-   `matthuisman/i.mjh.nz` (nome, logo, grupo e EPG) e monta a URL de stream via
-   o redirecionador `jmp2.uk`, que resolve para o stream oficial do servico no
-   momento do play (metodo atual que funciona apos as mudancas de 2024).
+2. Para cada provedor, busca a lista de canais na fonte adequada:
+   - **Pluto TV BR**: metadados (nome, logo, grupo, numero, EPG) da fonte
+     open-source `matthuisman/i.mjh.nz`, e o stream pela **URL HLS oficial da
+     Pluto TV** (stitcher), montada com uma sessao anonima de `boot.pluto.tv`;
+   - **Runtime.tv**: canais lineares direto da API oficial da plataforma, ja
+     com o stream HLS (`.m3u8`) oficial embutido.
 3. Aplica filtros, remove canais duplicados e grava:
    - `playlists/lista.m3u` — **lista combinada** (todos os provedores);
-   - `playlists/pluto-tv-br.m3u`, `playlists/plex.m3u`, etc. — uma por provedor.
+   - `playlists/pluto-tv-br.m3u`, `playlists/runtime-tv.m3u` — uma por provedor.
 4. O GitHub Actions roda esse processo **a cada 6 horas** e faz commit da lista.
 
 ## Como usar (passo a passo)
@@ -125,7 +129,8 @@ legislacao local.
 
 ## Creditos
 
-- Metadados de canais e EPG: [matthuisman/i.mjh.nz](https://github.com/matthuisman/i.mjh.nz)
+- Metadados de canais e EPG (Pluto TV BR): [matthuisman/i.mjh.nz](https://github.com/matthuisman/i.mjh.nz)
+- Canais lineares da Runtime.tv: API oficial da plataforma
 
 ## Licenca
 
