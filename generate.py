@@ -105,53 +105,35 @@ class Channel:
 # --------------------------------------------------------------------------
 # Provedores nativos
 # --------------------------------------------------------------------------
-def _pluto_session():
-    """Inicia uma sessao anonima na Pluto TV e devolve os parametros do
-    stitcher (necessarios para montar as URLs de stream oficiais)."""
-    did = str(uuid.uuid4())
-    sid = str(uuid.uuid4())
-    params = {
-        "appName": "web", "appVersion": "5.0", "deviceVersion": "126",
-        "deviceModel": "web", "deviceMake": "chrome", "deviceType": "web",
-        "clientID": did, "clientModelNumber": "na",
-        "serverSideAds": "false", "sid": sid,
-        "drmCapabilities": "widevine:L3",
-    }
-    try:
-        r = requests.get("https://boot.pluto.tv/v4/start",
-                         headers={"User-Agent": USER_AGENT},
-                         params=params, timeout=40)
-        r.raise_for_status()
-        b = r.json()
-        return (
-            b.get("stitcherParams", ""),
-            b.get("sessionToken", ""),
-            b.get("servers", {}).get(
-                "stitcher",
-                "https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv"),
-        )
-    except Exception as exc:  # noqa: BLE001
-        print(f"  [AVISO] Pluto TV: falha ao iniciar sessao: {exc}",
-              file=sys.stderr)
-        return None, None, None
-
-
 def provider_pluto(regions):
     """Canais ao vivo da Pluto TV.
 
     A lista de canais (nome, logo, grupo, numero, EPG) de cada regiao vem da
-    fonte open-source `matthuisman/i.mjh.nz`; o link de stream, porem, e a URL
-    HLS **oficial da propria Pluto TV** (stitcher), montada a partir de uma
-    sessao anonima iniciada em `boot.pluto.tv` -- exatamente como o site
-    https://pluto.tv/br/watch/live-tv/ faz no navegador.
+    fonte open-source `matthuisman/i.mjh.nz`. O link de stream e a URL HLS
+    **oficial da propria Pluto TV** (stitcher).
+
+    IMPORTANTE (regiao): a URL e montada SEM fixar pais/regiao e SEM token de
+    sessao. Assim, a Pluto resolve a regiao pelo IP de quem toca o canal (o
+    SEU dispositivo), e nao pelo IP do servidor que gera a lista (o GitHub
+    Actions roda nos EUA). Se o link trouxesse um token/regiao fixados nos
+    EUA, os canais brasileiros apareceriam como "canal indisponivel" (tela de
+    aviso) para todo mundo. Deixando neutro, o seu player no Brasil recebe o
+    conteudo BR normalmente.
     """
     data = get_json_gz(f"{MJH}/PlutoTV/.channels.json.gz")
     out, epg = [], []
     if not data:
         return out, epg
-    sp, tok, stitcher = _pluto_session()
-    if not sp:
-        return out, epg
+    stitcher = "https://stitcher-ipv4.pluto.tv"
+    did = str(uuid.uuid4())
+    sid = str(uuid.uuid4())
+    base_params = (
+        "advertisingId=&appName=web&appVersion=5.0&clientDeviceType=0"
+        f"&clientID={did}&clientModelNumber=na&deviceDNT=false"
+        f"&deviceId={did}&deviceLat=0&deviceLon=0&deviceMake=chrome"
+        "&deviceModel=web&deviceType=web&deviceVersion=126"
+        f"&serverSideAds=false&sid={sid}&userId="
+    )
     for region in regions:
         rdata = data.get("regions", {}).get(region)
         if not rdata:
@@ -160,9 +142,7 @@ def provider_pluto(regions):
         epg.append(f"{MJH}/PlutoTV/{region}.xml.gz")
         for cid, ch in rdata.get("channels", {}).items():
             url = (f"{stitcher}/stitch/hls/channel/{cid}/master.m3u8"
-                   f"?{sp}")
-            if tok:
-                url += f"&sessionToken={tok}"
+                   f"?{base_params}")
             out.append(Channel(
                 cid, ch.get("name", cid), url,
                 ch.get("logo", ""), ch.get("chno"), ch.get("group", ""),
