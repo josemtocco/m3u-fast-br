@@ -1,0 +1,71 @@
+# ==========================================================================
+# Configuracao do gerador de lista M3U para SS IPTV
+# --------------------------------------------------------------------------
+# Cada provedor tem um "type" (como buscar os canais) e, quando aplicavel,
+# uma lista de "regions" (paises). Os metadados vem do projeto open-source
+# matthuisman/i.mjh.nz e os streams usam o redirecionador jmp2.uk.
+#
+# IMPORTANTE sobre o Brasil:
+#   - Pluto TV   -> possui feed BR dedicado (regiao 'br'). FUNCIONA 100%.
+#   - Samsung TV Plus / Plex -> esta fonte gratuita NAO expoe um feed 'br'.
+#     Deixei regioes proximas como padrao; troque em 'regions' se quiser.
+#     Se voce encontrar um feed .m3u BR especifico, use um bloco type: m3u.
+#   - Roku ('Runtime') -> catalogo unico (majoritariamente US), sem regiao.
+# ==========================================================================
+
+output_file: playlists/lista.m3u
+generate_per_provider: true
+
+# Filtros globais (valem para TODOS os provedores)
+#   include: mantem apenas canais cujo nome contenha um dos termos
+#   exclude: remove canais cujo nome contenha um dos termos
+global_filters:
+  include: []
+  exclude: []
+
+providers:
+  # ---- Pluto TV Brasil (179+ canais em portugues) ----
+  - name: Pluto TV BR
+    type: pluto
+    group: "Pluto TV BR"
+    regions: [br]
+    enabled: true
+    include: []
+    exclude: []
+
+  # ---- Plex (sem feed 'br' nesta fonte; use mx/us como aproximacao) ----
+  - name: Plex
+    type: plex
+    group: "Plex"
+    regions: [mx]
+    enabled: true
+    include: []
+    exclude: []
+
+  # ---- Samsung TV Plus (sem feed 'br' nesta fonte; padrao us) ----
+  - name: Samsung TV Plus
+    type: samsung
+    group: "Samsung TV Plus"
+    regions: [us]
+    enabled: true
+    include: []
+    exclude: []
+
+  # ---- "Runtime" interpretado como Roku Channel (FAST gratuito) ----
+  - name: Roku Channel
+    type: roku
+    group: "Roku (Runtime)"
+    enabled: true
+    include: []
+    exclude: []
+
+  # ---- Exemplo de fonte M3U externa (desligada por padrao) ----
+  # Use este modelo se encontrar um feed .m3u/.m3u8 BR de qualquer servico.
+  - name: Fonte Externa BR
+    type: m3u
+    group: "Extra BR"
+    enabled: false
+    sources:
+      - https://exemplo.com/minha-lista-br.m3u8
+    include: []
+    exclude: []
