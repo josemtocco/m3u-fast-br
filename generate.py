@@ -27,7 +27,7 @@ import sys
 import time
 import uuid
 import datetime
-from urllib.parse import urlparse, parse_qs, urlencode
+from urllib.parse import urlparse, parse_qs, urlencode, urljoin
 
 import requests
 import yaml
@@ -212,13 +212,16 @@ def provider_runtime(language="pt", country="BR"):
             continue
         if "video_not_available" in url or "placeholder" in url:
             continue  # canal temporariamente indisponivel
-        # Usamos a URL de stream OFICIAL COMPLETA da Runtime -- exatamente a
-        # mesma que o player do site runtime.tv usa (com os parametros de
-        # app/dispositivo). Nao removemos parametros: o servidor de anuncios
-        # da OTTera precisa deles para decidir corretamente o stream por pais;
-        # sem eles, de um IP do Brasil, o canal pode nao abrir. A URL fica
-        # longa (~900 chars), mas o encurtador (TinyURL) deixa o link curto
-        # para o SS IPTV, preservando a URL oficial no redirecionamento.
+        # IMPORTANTE: a URL `playlist.m3u8?network_id=X` e um MASTER HLS que
+        # declara varias renditions + legendas. Players simples (SS IPTV) nao
+        # abrem esse master. O que funciona e a URL de uma RENDICAO de video
+        # (media playlist), ex.: `.../cl/<sessao>/1280x720_..._0_f.m3u8?i=...`.
+        # Entao resolvemos o master para a melhor rendicao de video e usamos
+        # ela direto. (A sessao do stitcher vale ~1 dia; o Actions regenera a
+        # cada 6h.) URLs que ja sao diretas (amagi/azteca) ficam como estao.
+        url = _runtime_resolve_variant(url)
+        if not url:
+            continue  # nao foi possivel resolver -> pula o canal
         cat = ""
         meta = o.get("meta") or {}
         cats = meta.get("categories") or []
@@ -235,24 +238,40 @@ def provider_runtime(language="pt", country="BR"):
     return out, epg
 
 
-def _runtime_trim(url):
-    """Reduz a URL da Runtime mantendo so o essencial (network_id).
+def _runtime_resolve_variant(url):
+    """Resolve o MASTER da Runtime (stitcher OTTera) para uma rendicao de video.
 
-    Streams via `stream.ads.ottera.tv/playlist.m3u8` tocam apenas com
-    `network_id`. URLs diretas (ex.: amagi) nao tem esse parametro e sao
-    devolvidas intactas (ja sao curtas).
+    O player do SS IPTV nao abre o master `playlist.m3u8?network_id=X` (que tem
+    multiplas renditions + legendas). O que toca e a URL de uma media playlist
+    de video, no formato `.../cl/<sessao>/1280x720_<bw>_0_f.m3u8?i=728_<id>`.
+    Esta funcao baixa o master e devolve a rendicao de video de maior banda.
+    URLs que nao sao do stitcher (amagi/azteca ja diretas) voltam intactas.
     """
     try:
         p = urlparse(url)
-        if "ottera.tv" not in p.netloc or not p.path.endswith("playlist.m3u8"):
-            return url
-        q = parse_qs(p.query)
-        nid = q.get("network_id", [""])[0]
-        if not nid:
-            return url
-        return f"{p.scheme}://{p.netloc}{p.path}?network_id={nid}"
+        if "ottera.tv" not in p.netloc or "playlist.m3u8" not in p.path:
+            return url  # ja e uma URL direta de video
+        r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=40)
+        if r.status_code != 200 or "#EXTM3U" not in r.text:
+            return None
+        lines = r.text.splitlines()
+        best_bw, best_url = -1, None
+        for i, line in enumerate(lines):
+            if line.startswith("#EXT-X-STREAM-INF") and "RESOLUTION=" in line:
+                mbw = re.search(r"BANDWIDTH=(\d+)", line)
+                bw = int(mbw.group(1)) if mbw else 0
+                # a URL da rendicao vem na proxima linha nao-comentario
+                for j in range(i + 1, len(lines)):
+                    cand = lines[j].strip()
+                    if cand and not cand.startswith("#"):
+                        if bw > best_bw:
+                            best_bw, best_url = bw, cand
+                        break
+        if not best_url:
+            return None
+        return urljoin(r.url, best_url)
     except Exception:  # noqa: BLE001
-        return url
+        return None
 
 
 def provider_m3u(sources):
