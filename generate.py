@@ -27,6 +27,7 @@ import sys
 import time
 import uuid
 import datetime
+from urllib.parse import urlparse, parse_qs, urlencode
 
 import requests
 import yaml
@@ -93,7 +94,14 @@ class Channel:
         return self.url.strip() or (self.cid, self.name)
 
     def render(self, group):
-        attrs = [f'tvg-id="{self.cid}"']
+        # tvg-name = identificador de guia usado pelo SS IPTV (ele casa o EPG
+        # pelo tvg-name, nao pelo tvg-id). Para a Pluto, o id do canal e o
+        # mesmo usado no XMLTV do matthuisman, entao o guia bate certo.
+        epg_id = self.cid or self.name
+        attrs = [
+            f'tvg-id="{self.cid}"',
+            f'tvg-name="{epg_id}"',
+        ]
         if self.chno is not None:
             attrs.append(f'tvg-chno="{self.chno}"')
         if self.logo:
@@ -105,48 +113,63 @@ class Channel:
 # --------------------------------------------------------------------------
 # Provedores nativos
 # --------------------------------------------------------------------------
+# Playlists da Pluto TV ja geradas a partir de um IP brasileiro (com token de
+# regiao BR valido). Montar o token aqui nao funcionaria, porque o GitHub
+# Actions roda nos EUA e a Pluto fixa a regiao pelo IP de quem gera o link --
+# resultando na tela de "canal indisponivel". Por isso reaproveitamos uma fonte
+# publica que ja publica os links com token BR, atualizada varias vezes ao dia.
+PLUTO_LIVE_BASE = (
+    "https://raw.githubusercontent.com/OwnerPlugins/pluto-tv-m3u/main/"
+    "pluto-live-{cc}.m3u"
+)
+# region (i.mjh.nz) -> codigo de pais (ISO) da fonte acima
+PLUTO_REGION_CC = {
+    "br": "BR", "us": "US", "mx": "MX", "ar": "AR", "cl": "CL",
+    "co": "CO", "es": "ES", "de": "DE", "fr": "FR", "gb": "GB",
+    "it": "IT", "ca": "CA", "pe": "PE", "uy": "UY", "ve": "VE",
+}
+
+
 def provider_pluto(regions):
-    """Canais ao vivo da Pluto TV.
+    """Canais ao vivo da Pluto TV com link HLS oficial e token de regiao BR.
 
-    A lista de canais (nome, logo, grupo, numero, EPG) de cada regiao vem da
-    fonte open-source `matthuisman/i.mjh.nz`. O link de stream e a URL HLS
-    **oficial da propria Pluto TV** (stitcher).
-
-    IMPORTANTE (regiao): a URL e montada SEM fixar pais/regiao e SEM token de
-    sessao. Assim, a Pluto resolve a regiao pelo IP de quem toca o canal (o
-    SEU dispositivo), e nao pelo IP do servidor que gera a lista (o GitHub
-    Actions roda nos EUA). Se o link trouxesse um token/regiao fixados nos
-    EUA, os canais brasileiros apareceriam como "canal indisponivel" (tela de
-    aviso) para todo mundo. Deixando neutro, o seu player no Brasil recebe o
-    conteudo BR normalmente.
+    Em vez de gerar o token aqui (o que daria regiao errada, pois rodamos fora
+    do Brasil), baixamos a playlist ja pronta -- com token BR valido -- de uma
+    fonte publica atualizada varias vezes ao dia. O EPG (guia) vem da fonte
+    open-source `matthuisman/i.mjh.nz`.
     """
-    data = get_json_gz(f"{MJH}/PlutoTV/.channels.json.gz")
     out, epg = [], []
-    if not data:
-        return out, epg
-    stitcher = "https://stitcher-ipv4.pluto.tv"
-    did = str(uuid.uuid4())
-    sid = str(uuid.uuid4())
-    base_params = (
-        "advertisingId=&appName=web&appVersion=5.0&clientDeviceType=0"
-        f"&clientID={did}&clientModelNumber=na&deviceDNT=false"
-        f"&deviceId={did}&deviceLat=0&deviceLon=0&deviceMake=chrome"
-        "&deviceModel=web&deviceType=web&deviceVersion=126"
-        f"&serverSideAds=false&sid={sid}&userId="
-    )
     for region in regions:
-        rdata = data.get("regions", {}).get(region)
-        if not rdata:
-            print(f"  [AVISO] Pluto TV nao possui a regiao '{region}'")
+        cc = PLUTO_REGION_CC.get(region.lower(), region.upper())
+        url = PLUTO_LIVE_BASE.format(cc=cc)
+        r = http_get(url)
+        if not r:
+            print(f"  [AVISO] Pluto TV: nao consegui baixar a lista de '{cc}'")
             continue
         epg.append(f"{MJH}/PlutoTV/{region}.xml.gz")
-        for cid, ch in rdata.get("channels", {}).items():
-            url = (f"{stitcher}/stitch/hls/channel/{cid}/master.m3u8"
-                   f"?{base_params}")
-            out.append(Channel(
-                cid, ch.get("name", cid), url,
-                ch.get("logo", ""), ch.get("chno"), ch.get("group", ""),
-            ))
+        pending = None
+        for line in r.text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("#EXTINF"):
+                m = EXTINF_RE.match(line)
+                if m:
+                    attrs = dict(ATTR_RE.findall(m.group(2)))
+                    pending = (attrs, m.group(3).strip())
+            elif line.startswith("#"):
+                continue
+            elif pending is not None:
+                attrs, title = pending
+                out.append(Channel(
+                    attrs.get("tvg-id", ""),
+                    title or attrs.get("tvg-name", ""),
+                    line,
+                    attrs.get("tvg-logo", ""),
+                    attrs.get("tvg-chno"),
+                    attrs.get("group-title", ""),
+                ))
+                pending = None
     return out, epg
 
 
@@ -189,6 +212,12 @@ def provider_runtime(language="pt", country="BR"):
             continue
         if "video_not_available" in url or "placeholder" in url:
             continue  # canal temporariamente indisponivel
+        # Encurtar a URL: o stream da Runtime (stitcher da OTTera) carrega
+        # dezenas de parametros de anuncio/targeting que NAO sao necessarios
+        # para tocar. Testado: manter apenas `network_id` entrega o mesmo
+        # canal (master -> variante -> segmento de video 200). Isso reduz a
+        # URL de ~900 para ~58 caracteres, sem depender de encurtador externo.
+        url = _runtime_trim(url)
         cat = ""
         meta = o.get("meta") or {}
         cats = meta.get("categories") or []
@@ -203,6 +232,26 @@ def provider_runtime(language="pt", country="BR"):
             cat,
         ))
     return out, epg
+
+
+def _runtime_trim(url):
+    """Reduz a URL da Runtime mantendo so o essencial (network_id).
+
+    Streams via `stream.ads.ottera.tv/playlist.m3u8` tocam apenas com
+    `network_id`. URLs diretas (ex.: amagi) nao tem esse parametro e sao
+    devolvidas intactas (ja sao curtas).
+    """
+    try:
+        p = urlparse(url)
+        if "ottera.tv" not in p.netloc or not p.path.endswith("playlist.m3u8"):
+            return url
+        q = parse_qs(p.query)
+        nid = q.get("network_id", [""])[0]
+        if not nid:
+            return url
+        return f"{p.scheme}://{p.netloc}{p.path}?network_id={nid}"
+    except Exception:  # noqa: BLE001
+        return url
 
 
 def provider_m3u(sources):
@@ -269,7 +318,11 @@ def write_m3u(path, items, epg_attr=None):
     header = "#EXTM3U"
     if epg_attr:
         header += f' url-tvg="{epg_attr}"'
-    out = [header, f"# Gerado automaticamente em {now}"]
+    # IMPORTANTE p/ SS IPTV: nada de linha de comentario entre o #EXTM3U e o
+    # primeiro par #EXTINF/URL -- o parser do SS IPTV pode travar. A data de
+    # geracao vai como atributo no proprio cabecalho (ignorado por quem nao usa).
+    header += f' x-generated="{now}"'
+    out = [header]
     for group, ch in items:
         out.append(ch.render(group))
     with open(path, "w", encoding="utf-8") as fh:
@@ -278,6 +331,44 @@ def write_m3u(path, items, epg_attr=None):
 
 def slugify(text):
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+# --------------------------------------------------------------------------
+# Encurtador de URL (TinyURL) para links muito longos (ex.: Pluto TV)
+# --------------------------------------------------------------------------
+_SHORT_CACHE = {}
+
+
+def shorten_url(url, min_len=500, retries=4):
+    """Encurta uma URL longa via TinyURL (sem necessidade de chave de API).
+
+    So encurta URLs acima de `min_len` -- URLs ja curtas (Runtime, streams
+    diretos) sao devolvidas intactas. O TinyURL devolve um link curto
+    (~28 chars) que redireciona (301) para a URL original; players como VLC
+    e SS IPTV seguem o redirecionamento normalmente. Em caso de falha de
+    rede/limite, a URL original e mantida (nunca quebra a lista).
+    """
+    if not url or len(url) <= min_len or not url.startswith("http"):
+        return url
+    if url in _SHORT_CACHE:
+        return _SHORT_CACHE[url]
+    api = "https://tinyurl.com/api-create.php?url=" + requests.utils.quote(
+        url, safe="")
+    for attempt in range(retries):
+        try:
+            r = requests.get(api, timeout=30)
+            txt = (r.text or "").strip()
+            if r.status_code == 200 and txt.startswith("http") \
+                    and "error" not in txt.lower():
+                _SHORT_CACHE[url] = txt
+                time.sleep(0.3)  # educado com o servico
+                return txt
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(1 + attempt * 2)
+    print("  [AVISO] nao consegui encurtar uma URL; mantendo a original",
+          file=sys.stderr)
+    return url
 
 
 def main():
@@ -290,6 +381,8 @@ def main():
 
     output_file = cfg.get("output_file", "playlists/lista.m3u")
     per_provider = cfg.get("generate_per_provider", True)
+    do_shorten = cfg.get("shorten_urls", True)
+    shorten_min = int(cfg.get("shorten_min_len", 500))
     gf = cfg.get("global_filters", {}) or {}
     g_inc = gf.get("include") or []
     g_exc = gf.get("exclude") or []
@@ -334,6 +427,13 @@ def main():
                 continue
             seen.add(ch.key)
             unique.append(ch)
+
+        if do_shorten and unique:
+            n_long = sum(1 for c in unique if len(c.url) > shorten_min)
+            if n_long:
+                print(f"  encurtando {n_long} URLs longas (TinyURL)...")
+                for c in unique:
+                    c.url = shorten_url(c.url, min_len=shorten_min)
 
         combined.extend((group, ch) for ch in unique)
         epg_all.extend(epg)

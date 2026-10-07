@@ -16,6 +16,14 @@
 output_file: playlists/lista.m3u
 generate_per_provider: true
 
+# Encurtar URLs longas (recomendado para SS IPTV, que pode falhar com links
+# muito grandes). Os canais da Pluto TV tem URL com token (~2300 caracteres)
+# e sao encurtados via TinyURL para ~28 caracteres (redireciona para o link
+# oficial). Os da Runtime ja sao reduzidos no proprio gerador (~58 chars).
+# Se o encurtador falhar ou voce preferir URLs diretas, deixe em false.
+shorten_urls: true
+shorten_min_len: 500   # so encurta URLs acima deste tamanho (caracteres)
+
 # Filtros globais (valem para TODOS os provedores)
 #   include: mantem apenas canais cujo nome contenha um dos termos
 #   exclude: remove canais cujo nome contenha um dos termos

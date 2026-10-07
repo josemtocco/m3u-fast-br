@@ -15,12 +15,12 @@ lista sozinho — sem servidor e sem custo.
 | Runtime.tv | `Runtime.tv` | **Sim** — catalogo BR em portugues (~22 canais lineares) |
 
 > **Sobre a Pluto TV BR:** o link de cada canal e a **URL HLS oficial da propria
-> Pluto TV** (stitcher), montada a partir de uma sessao anonima iniciada em
-> `boot.pluto.tv` — exatamente o mesmo mecanismo que o site
-> https://pluto.tv/br/watch/live-tv/ usa no navegador. Os metadados do canal
-> (nome, logo, grupo, numero e EPG) vem da fonte open-source
-> `matthuisman/i.mjh.nz`. Como a sessao e renovada a cada execucao (a cada 6h),
-> os links ficam sempre validos.
+> Pluto TV** (stitcher), com um **token de regiao BR valido**. Como o GitHub
+> Actions roda fora do Brasil, o projeto nao gera o token aqui (daria regiao
+> errada e os canais BR cairiam na tela de "canal indisponivel"); em vez disso
+> ele reaproveita uma fonte publica que ja publica os links **com token BR**,
+> atualizada varias vezes ao dia (`OwnerPlugins/pluto-tv-m3u`). O guia (EPG)
+> vem da fonte open-source `matthuisman/i.mjh.nz`. (~179 canais)
 >
 > **Sobre a Runtime.tv:** a lista puxa os canais lineares (FAST) **diretamente
 > da API oficial da Runtime.tv** (plataforma OTTera), filtrando pelo catalogo
@@ -34,12 +34,12 @@ lista sozinho — sem servidor e sem custo.
 
 1. O script [`generate.py`](generate.py) le o [`config.yml`](config.yml).
 2. Para cada provedor, busca a lista de canais na fonte adequada:
-   - **Pluto TV BR**: metadados (nome, logo, grupo, numero, EPG) da fonte
-     open-source `matthuisman/i.mjh.nz`, e o stream pela **URL HLS oficial da
-     Pluto TV** (stitcher), montada com uma sessao anonima de `boot.pluto.tv`;
+   - **Pluto TV BR**: links HLS oficiais **com token de regiao BR** de uma
+     fonte publica atualizada varias vezes ao dia (`OwnerPlugins/pluto-tv-m3u`),
+     e o guia (EPG) da fonte open-source `matthuisman/i.mjh.nz`;
    - **Runtime.tv**: canais lineares direto da API oficial da plataforma, ja
      com o stream HLS (`.m3u8`) oficial embutido.
-3. Aplica filtros, remove canais duplicados e grava:
+3. Aplica filtros, remove duplicados, **encurta as URLs longas** e grava:
    - `playlists/lista.m3u` — **lista combinada** (todos os provedores);
    - `playlists/pluto-tv-br.m3u`, `playlists/runtime-tv.m3u` — uma por provedor.
 4. O GitHub Actions roda esse processo **a cada 6 horas** e faz commit da lista.
@@ -85,6 +85,22 @@ No **SS IPTV**:
 
 > A lista inclui `url-tvg` com os guias de programacao (EPG) de cada provedor,
 > entao o SS IPTV tambem pode exibir a programacao dos canais.
+
+## URLs curtas (compativel com SS IPTV)
+
+O SS IPTV pode falhar com links muito longos. Por isso a lista ja sai com as
+URLs encurtadas:
+
+- **Pluto TV**: o link oficial tem um token de ~2.300 caracteres. Ele e
+  encurtado via **TinyURL** para ~28 caracteres (o link curto redireciona para
+  o stream oficial; VLC e SS IPTV seguem o redirecionamento normalmente).
+- **Runtime.tv**: a URL original (~900 caracteres, cheia de parametros de
+  anuncio) e reduzida pelo proprio gerador para ~58 caracteres, mantendo so o
+  essencial (`network_id`) — sem depender de encurtador externo.
+
+Isso e controlado no `config.yml` por `shorten_urls` (ligado por padrao) e
+`shorten_min_len` (so encurta URLs acima desse tamanho). Se preferir os links
+diretos (sem TinyURL), basta `shorten_urls: false`.
 
 ## Rodar localmente (opcional)
 
