@@ -212,12 +212,13 @@ def provider_runtime(language="pt", country="BR"):
             continue
         if "video_not_available" in url or "placeholder" in url:
             continue  # canal temporariamente indisponivel
-        # Encurtar a URL: o stream da Runtime (stitcher da OTTera) carrega
-        # dezenas de parametros de anuncio/targeting que NAO sao necessarios
-        # para tocar. Testado: manter apenas `network_id` entrega o mesmo
-        # canal (master -> variante -> segmento de video 200). Isso reduz a
-        # URL de ~900 para ~58 caracteres, sem depender de encurtador externo.
-        url = _runtime_trim(url)
+        # Usamos a URL de stream OFICIAL COMPLETA da Runtime -- exatamente a
+        # mesma que o player do site runtime.tv usa (com os parametros de
+        # app/dispositivo). Nao removemos parametros: o servidor de anuncios
+        # da OTTera precisa deles para decidir corretamente o stream por pais;
+        # sem eles, de um IP do Brasil, o canal pode nao abrir. A URL fica
+        # longa (~900 chars), mas o encurtador (TinyURL) deixa o link curto
+        # para o SS IPTV, preservando a URL oficial no redirecionamento.
         cat = ""
         meta = o.get("meta") or {}
         cats = meta.get("categories") or []
