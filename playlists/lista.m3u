@@ -1,4 +1,4 @@
-#EXTM3U url-tvg="https://github.com/matthuisman/i.mjh.nz/raw/refs/heads/master/PlutoTV/br.xml.gz" x-generated="2026-10-07 16:32 UTC"
+#EXTM3U url-tvg="https://github.com/matthuisman/i.mjh.nz/raw/refs/heads/master/PlutoTV/br.xml.gz" x-generated="2026-10-07 16:49 UTC"
 #EXTINF:-1 tvg-id="633dc392e0282400071b0d39" tvg-name="633dc392e0282400071b0d39" tvg-logo="https://images.pluto.tv/channels/633dc392e0282400071b0d39/logo.png?fit=fill&fm=png&h=80&w=280" group-title="Pluto TV BR",Beyblade
 https://tinyurl.com/2xhaoghn
 #EXTINF:-1 tvg-id="656f389c3944b60008e5bdab" tvg-name="656f389c3944b60008e5bdab" tvg-logo="https://images.pluto.tv/channels/656f389c3944b60008e5bdab/logo.png?fit=fill&fm=png&h=80&w=280" group-title="Pluto TV BR",Boruto: Naruto Next Generations
@@ -382,15 +382,15 @@ https://stream.ads.ottera.tv/playlist.m3u8?network_id=2649
 #EXTINF:-1 tvg-id="11808" tvg-name="11808" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/uLDVczoJETxKCu1UvzcUeCk5yNN8c-Dm2UuMf7ybPQw.jpg" group-title="Runtime.tv",Toon Goggles em português
 https://stream.ads.ottera.tv/playlist.m3u8?network_id=5442
 #EXTINF:-1 tvg-id="16048" tvg-name="16048" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/runtime_masterchefbrasil_logo_1920x1080_-_suraj_s.jpg" group-title="Runtime.tv",Masterchef Brazil
-https://tinyurl.com/2ce9zhcp
+https://tinyurl.com/23r82dtp
 #EXTINF:-1 tvg-id="13924" tvg-name="13924" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/QeC3XCHvkfJ5r1cyhW_5wyQ0Hs28MqxgN0gK712Mrug.jpg" group-title="Runtime.tv",Milenio Televisión
 https://stream.ads.ottera.tv/playlist.m3u8?network_id=6403
-#EXTINF:-1 tvg-id="4678" tvg-name="4678" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/br_comedy_bg.jpg" group-title="Runtime.tv",Runtime Comédia
-https://stream.ads.ottera.tv/playlist.m3u8?network_id=2553
-#EXTINF:-1 tvg-id="11709" tvg-name="11709" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/record_news_thumbnail.png" group-title="Runtime.tv",Record News
-https://stream.ads.ottera.tv/playlist.m3u8?network_id=5431
 #EXTINF:-1 tvg-id="6805" tvg-name="6805" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/runtime_romance_16x9_2.jpg" group-title="Runtime.tv",Runtime Romance
 https://stream.ads.ottera.tv/playlist.m3u8?network_id=6133
+#EXTINF:-1 tvg-id="11709" tvg-name="11709" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/record_news_thumbnail.png" group-title="Runtime.tv",Record News
+https://stream.ads.ottera.tv/playlist.m3u8?network_id=5431
+#EXTINF:-1 tvg-id="4678" tvg-name="4678" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/br_comedy_bg.jpg" group-title="Runtime.tv",Runtime Comédia
+https://stream.ads.ottera.tv/playlist.m3u8?network_id=2553
 #EXTINF:-1 tvg-id="6582" tvg-name="6582" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/runtime_series_16x9_0.jpg" group-title="Runtime.tv",Runtime Series
 https://stream.ads.ottera.tv/playlist.m3u8?network_id=6132
 #EXTINF:-1 tvg-id="6801" tvg-name="6801" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/runtime_cinespanto_16x9_1.jpg" group-title="Runtime.tv",CinEspanto
@@ -400,4 +400,4 @@ https://stream.ads.ottera.tv/playlist.m3u8?network_id=2153
 #EXTINF:-1 tvg-id="13922" tvg-name="13922" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/iLulYrBX1GWzxXXlZ4Mr1e5qi8qXgkmd0FqEK01LHdo.jpg" group-title="Runtime.tv",Canal 6 CDMX
 https://stream.ads.ottera.tv/playlist.m3u8?network_id=6405
 #EXTINF:-1 tvg-id="14530" tvg-name="14530" tvg-logo="https://img.static-ottera.com/prod/run/linear_channel/logo/tv_zyn_thumbnail.jpg" group-title="Runtime.tv",TV ZYN
-https://tinyurl.com/22bkgavh
+https://tinyurl.com/25v4y35q
